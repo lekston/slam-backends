@@ -34,7 +34,7 @@ def generate_trajectory_with_loop_closure(num_keyframes=12, noise_level=0.1):
         # Add noise to odometry
         noise_x = np.random.normal(0, noise_level)
         noise_y = np.random.normal(0, noise_level)
-        noise_theta = np.random.normal(0, noise_level * 2)
+        noise_theta = np.random.normal(0, noise_level * 0.5)
 
         odometry.append((dx + noise_x, dy + noise_y, dtheta + noise_theta))
 
@@ -191,6 +191,12 @@ if __name__ == "__main__":
 
     # Reconstruct trajectory from odometry
     reconstructed = reconstruct_from_odometry(odometry, initial_pose=gt_poses[0])
+
+    for i in range(min(len(gt_poses), len(reconstructed), len(odometry))):
+        print(f"gt_poses[{i}]: {gt_poses[i]}")
+        print(f"reconstructed[{i}]: {reconstructed[i]}")
+        print(f"odometry[{i}]: {odometry[i]}")
+        print("#"*40)
 
     # Plot
     plot_results(gt_poses, reconstructed, loop_closures=loop_closures)

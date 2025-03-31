@@ -9,12 +9,13 @@ def optimize_with_gtsam(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2
     Optimize a pose graph using GTSAM.
 
     Args:
-        odometry: List of (dx, dy, dtheta) relative pose measurements
+        odometry: List of (dx, dy, dtheta) relative pose measurements in global frame
         loop_closures: List of (i, j, dx, dy, dtheta) loop closure constraints
         prior_noise: Noise for the prior on the first pose
         odom_noise: Noise for odometry measurements
         loop_noise: Noise for loop closure measurements
         initial_pose: Initial pose [x, y, theta], default is [0, 0, 0]
+        gt_poses: Optional ground truth poses for debugging
 
     Returns:
         optimized_poses: Numpy array of optimized poses
@@ -40,33 +41,27 @@ def optimize_with_gtsam(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2
     # Add odometry factors
     odom_noise_model = gtsam.noiseModel.Diagonal.Sigmas(np.array([odom_noise, odom_noise, odom_noise * 0.1]))
 
-    # Reconstruct poses based on odometry to get initial estimates
+    # Generate poses and add factors
     poses = [gtsam.Pose2(x0, y0, theta0)]
 
-    for i, (dx, dy, dtheta) in enumerate(odometry):
+    for i, (dx_global, dy_global, dtheta) in enumerate(odometry):
         prev_pose = poses[-1]
+        prev_theta = prev_pose.theta()
 
-        # rotate dx, dy from global frame to local frame
-        if i == 0:
-            c, s = np.cos(-prev_pose.theta()), np.sin(-prev_pose.theta())
-        else:
-            c, s = np.cos(-prev_pose.theta() - np.pi/2), np.sin(-prev_pose.theta() - np.pi/2)            
-        dx_local = c * dx - s * dy
-        dy_local = s * dx + c * dy
+        # Convert global odometry to local frame
+        # Rotation matrix from global to local frame
+        c = np.cos(prev_theta)
+        s = np.sin(prev_theta)
 
-        # Create odometry measurement as relative pose
+        # Apply inverse rotation to get measurements in local frame
+        dx_local = c * dx_global + s * dy_global
+        dy_local = -s * dx_global + c * dy_global
+
+        # Create odometry measurement as relative pose in local frame
         delta = gtsam.Pose2(dx_local, dy_local, dtheta)
 
-        # In GTSAM, we need to convert local odometry to global frame
-        # However, the Pose2 class handles this when using .compose()
+        # Calculate next pose
         next_pose = prev_pose.compose(delta)
-
-        print("#"*40)
-        print(f"prev_pose: {prev_pose}")
-        print(f"gt_poses: {gt_poses[i]}")
-        print(f"x: {dx}, y: {dy}, dtheta: {dtheta}")
-        print(f"dx_local: {dx_local}, dy_local: {dy_local}, dtheta: {dtheta}")
-        print(f"next_pose: {next_pose}")
         poses.append(next_pose)
 
         # Add odometry factor
@@ -75,16 +70,38 @@ def optimize_with_gtsam(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2
         # Add to initial estimate
         initial_estimate.insert(X(i+1), next_pose)
 
-    # Add loop closure factors
+        if gt_poses is not None:
+            print(f"Step {i+1}:")
+            print(f"  Global odometry: dx={dx_global:.3f}, dy={dy_global:.3f}, dtheta={dtheta:.3f}")
+            print(f"  Converted to local: dx={dx_local:.3f}, dy={dy_local:.3f}")
+            print(f"  Previous pose: x={prev_pose.x():.3f}, y={prev_pose.y():.3f}, θ={prev_pose.theta():.3f}")
+            print(f"  GT pose: x={gt_poses[i+1][0]:.3f}, y={gt_poses[i+1][1]:.3f}, θ={gt_poses[i+1][2]:.3f}")
+            print(f"  Next pose: x={next_pose.x():.3f}, y={next_pose.y():.3f}, θ={next_pose.theta():.3f}")
+            print()
+
+    # Add loop closure factors - these also need frame conversion
     loop_noise_model = gtsam.noiseModel.Diagonal.Sigmas(np.array([loop_noise, loop_noise, loop_noise * 0.1]))
 
-    for i, j, dx, dy, dtheta in loop_closures:
+    for i, j, dx_global, dy_global, dtheta in loop_closures:
         # Ensure indices are integers
         i_idx = int(i)
         j_idx = int(j)
 
+        # Get the source pose for this loop closure
+        source_pose = poses[i_idx]
+        source_theta = source_pose.theta()
+
+        # Convert global displacement to local frame of the source pose
+        c = np.cos(source_theta)
+        s = np.sin(source_theta)
+
+        dx_local = c * dx_global + s * dy_global
+        dy_local = -s * dx_global + c * dy_global
+
         # Create loop closure measurement as relative pose
-        delta = gtsam.Pose2(dx, dy, dtheta)
+        delta = gtsam.Pose2(dx_local, dy_local, dtheta)
+
+        # Add the factor
         graph.add(gtsam.BetweenFactorPose2(X(i_idx), X(j_idx), delta, loop_noise_model))
 
     # Set up the optimizer

@@ -1,14 +1,6 @@
-Current project focuses on developing with a SLAM back-end which receives VO odometry inputs with estimates of 2D (planar) position and 3D orientation. The project is written in python, locations are expressed in metric system (UTM), altitude is assumed constant and orientations are expressed following aeronautic NED (world-to-body transform YPR). So far the project is able to build and use a map but after an information is added to this map it remains static, so old inputs are never updated. The map itself is represented as a set of loosely tied key-frames, where each key-frame is:
-- indexed according to the order of their creation, which corresponds to the progression through the system's trajectory
-- assigned to the most recent position & attitude estimate on the time of this key-frame creation.
-- assigned a total drift estimate from the beginning of the trajectory (expressed roughly as a symmetric gaussian around the estimated position)
-Now, when a location is revisited, the front-end provides a really high certainty matches so the current estimate of position is adjusted really fast, however the information that has already entered the map (from the very beginning of the most recent closed loop trajectory to the very moment immediately before detecting the loop closure) is left unchanged and this limitation has to be addressed in this present stage of development.
-There exist several optimization back-ends that could be used here, e.g.: Ceres, g2o, MRPT, GTSAM (feel free to suggest others if they offer some clear advantage). Our current objective is to compare and pick one (preferably by juxtaposing them or even comparing simple implementations in code).
-So let's first go through the auxiliary criteria that would impact our choice:
-- the toolbox should be easy to integrate with a python project
-- toolbox should allow starting with a rough symmetric Gaussian representation of certainty but then should support a full 6D representation with a covariance matrix (or information matrix or equivalent)
-- offer highly performant code that can run efficiently on an embedded Unix platform on Arm architecture (no CUDA!)
-- preferably we would want to dynamically set the early exit criteria for optimization to balance the trade-off between precision vs. compute requirements.
-For simplicity, in the this stage the initial key-frame is assumed to have a constant location, however subsequently we would like to add a possibility to detect (with a limited certainty) loop-closures to a global low resolution (pre-loaded) map so as to adjust the entire growing navigation map (high-resolution one, created on the go) to minimize it's absolute errors.
+# Overview
 
-We should start by shortlisting the frameworks and creating a small example of a dummy trajectory of a dozen or so keyframes in 2D planar world (X, Y, theta) and solve this dummy example using the pre-selected frameworks. This type of comparison will be an input to the final selection of the optimization framework that will be used in the further steps of the project.
+Auto-generated (mostly) SLAM backend comparison framework focused on experimenting with various graph optimization frameworks.
+
+Prompt and original answer are provided in the docs subdirectory.
+

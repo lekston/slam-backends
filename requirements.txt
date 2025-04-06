@@ -1,0 +1,5 @@
+g2o-python==0.0.12
+gtsam==4.2
+matplotlib==3.9.2
+matplotlib-inline==0.1.7
+numpy==1.26.4

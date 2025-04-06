@@ -3,7 +3,15 @@ import matplotlib.pyplot as plt
 import g2o
 from generate_test_data import plot_results
 
-def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, loop_noise=0.1, initial_pose=None, gt_poses=None):
+def optimize_with_g2o(
+        odometry,
+        loop_closures,
+        prior_noise=0.1,
+        odom_noise=0.2,
+        loop_noise=0.1,
+        initial_pose=None,
+        fill_debug_results=False
+    ):
     """
     Optimize a pose graph using g2o.
 
@@ -14,14 +22,14 @@ def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, 
         odom_noise: Noise for odometry measurements
         loop_noise: Noise for loop closure measurements
         initial_pose: Initial pose [x, y, theta], default is [0, 0, 0]
-        gt_poses: Optional ground truth poses for debugging
+        fill_debug_results: Whether to return debug information
 
     Returns:
         optimized_poses: Numpy array of optimized poses
+        debug_results: Debug information if requested
     """
     # Create a g2o optimizer
     optimizer = g2o.SparseOptimizer()
-    # solver = g2o.BlockSolverSE2(g2o.LinearSolverCholmodSE2())
     solver = g2o.BlockSolverSE2(g2o.LinearSolverDenseSE2())
     algorithm = g2o.OptimizationAlgorithmLevenberg(solver)
     optimizer.set_algorithm(algorithm)
@@ -41,6 +49,8 @@ def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, 
     # Reconstruct poses for initial estimates
     poses = [g2o.SE2(x0, y0, theta0)]
     vertices = [v0]
+
+    debug_results = []
 
     # Add vertices and odometry edges
     for i, (dx_global, dy_global, dtheta) in enumerate(odometry):
@@ -83,6 +93,15 @@ def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, 
         edge.set_information(information)
 
         optimizer.add_edge(edge)
+
+        if fill_debug_results:
+            debug_results.append({
+                "step": i+1,
+                "global_odometry": (dx_global, dy_global, dtheta),
+                "converted_to_local": (dx_local, dy_local),
+                "previous_pose": prev_pose,
+                "next_pose": next_pose
+            })
 
     # Add loop closure edges
     for i, j, dx_global, dy_global, dtheta in loop_closures:
@@ -132,7 +151,22 @@ def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, 
         xy = pose.translation()
         optimized_poses[i] = [xy[0], xy[1], pose.rotation().angle()]
 
-    return optimized_poses
+    return optimized_poses, debug_results
+
+
+def show_debug_results(debug_results, gt_poses):
+    for i, entry in enumerate(debug_results):
+            dx_global, dy_global, dtheta = entry["global_odometry"]
+            dx_local, dy_local = entry["converted_to_local"]
+            prev_pose = entry["previous_pose"]
+            next_pose = entry["next_pose"]
+            print(f"Step {i+1}:")
+            print(f"  Global odometry: dx={dx_global:.3f}, dy={dy_global:.3f}, dtheta={dtheta:.3f}")
+            print(f"  Converted to local: dx={dx_local:.3f}, dy={dy_local:.3f}")
+            print(f"  Previous pose: x={prev_pose.translation()[0]:.3f}, y={prev_pose.translation()[1]:.3f}, θ={prev_pose.rotation().angle():.3f}")
+            print(f"  GT pose: x={gt_poses[i+1][0]:.3f}, y={gt_poses[i+1][1]:.3f}, θ={gt_poses[i+1][2]:.3f}")
+            print(f"  Next pose: x={next_pose.translation()[0]:.3f}, y={next_pose.translation()[1]:.3f}, θ={next_pose.rotation().angle():.3f}")
+            print()
 
 if __name__ == "__main__":
     # Load the data
@@ -141,15 +175,20 @@ if __name__ == "__main__":
     odometry = data['odometry']
     loop_closures = data['loop_closures']
 
+    # Get initial pose from ground truth
+    initial_pose = gt_poses[0]
+
     # Reconstruct trajectory from odometry
     from generate_test_data import reconstruct_from_odometry
-    reconstructed = reconstruct_from_odometry(odometry)
+    reconstructed = reconstruct_from_odometry(odometry, initial_pose=initial_pose)
 
     # Optimize using g2o
-    optimized = optimize_with_g2o(odometry, loop_closures)
-
-    # Plot results
-    plot_results(gt_poses, reconstructed, optimized, loop_closures)
+    fill_debug_results = True
+    optimized, debug_results = optimize_with_g2o(
+        odometry, loop_closures, initial_pose=initial_pose, fill_debug_results=fill_debug_results
+    )
+    if fill_debug_results:
+        show_debug_results(debug_results, gt_poses=gt_poses)
 
     # Calculate error metrics
     odom_error = np.mean(np.sqrt(np.sum((reconstructed[:, :2] - gt_poses[:, :2])**2, axis=1)))
@@ -157,4 +196,7 @@ if __name__ == "__main__":
 
     print(f"Mean position error (odometry only): {odom_error:.4f} m")
     print(f"Mean position error (g2o optimized): {g2o_error:.4f} m")
-    print(f"Improvement: {(1 - g2o_error/odom_error) * 100:.2f}%") 
+    print(f"Improvement: {(1 - g2o_error/odom_error) * 100:.2f}%")
+
+    # Plot results
+    plot_results(gt_poses, reconstructed, optimized, loop_closures)

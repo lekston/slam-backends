@@ -38,7 +38,7 @@ def compare_frameworks(gt_poses, odometry, loop_closures):
     # Run each framework
     if "GTSAM" in frameworks:
         start_time = time.time()
-        gtsam_result = optimize_with_gtsam(odometry, loop_closures, initial_pose=initial_pose)
+        gtsam_result, _ = optimize_with_gtsam(odometry, loop_closures, initial_pose=initial_pose)
         timing["GTSAM"] = time.time() - start_time
         results["GTSAM"] = gtsam_result
 
@@ -47,7 +47,7 @@ def compare_frameworks(gt_poses, odometry, loop_closures):
 
     if "g2o" in frameworks:
         start_time = time.time()
-        g2o_result = optimize_with_g2o(odometry, loop_closures, initial_pose=initial_pose)
+        g2o_result, _ = optimize_with_g2o(odometry, loop_closures, initial_pose=initial_pose)
         timing["g2o"] = time.time() - start_time
         results["g2o"] = g2o_result
 

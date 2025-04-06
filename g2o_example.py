@@ -183,7 +183,7 @@ if __name__ == "__main__":
     reconstructed = reconstruct_from_odometry(odometry, initial_pose=initial_pose)
 
     # Optimize using g2o
-    fill_debug_results = True
+    fill_debug_results = False
     optimized, debug_results = optimize_with_g2o(
         odometry, loop_closures, initial_pose=initial_pose, fill_debug_results=fill_debug_results
     )

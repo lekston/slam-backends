@@ -18,7 +18,7 @@ try:
 except ImportError:
     print("g2o not available")
 
-def compare_frameworks(gt_poses, odometry, loop_closures):
+def compare_frameworks(gt_poses, odometry, loop_closures, num_runs=10):
     """Compare the performance of different optimization frameworks."""
     # Get initial pose
     initial_pose = gt_poses[0]
@@ -35,21 +35,29 @@ def compare_frameworks(gt_poses, odometry, loop_closures):
     odom_error = np.mean(np.sqrt(np.sum((reconstructed[:, :2] - gt_poses[:, :2])**2, axis=1)))
     errors["Odometry"] = odom_error
 
-    # Run each framework
+    # Run each framework multiple times and average results
     if "GTSAM" in frameworks:
-        start_time = time.time()
-        gtsam_result, _ = optimize_with_gtsam(odometry, loop_closures, initial_pose=initial_pose)
-        timing["GTSAM"] = time.time() - start_time
-        results["GTSAM"] = gtsam_result
+        gtsam_times = []
+        for _ in range(num_runs):
+            start_time = time.time()
+            gtsam_result, _ = optimize_with_gtsam(odometry, loop_closures, initial_pose=initial_pose)
+            gtsam_times.append(time.time() - start_time)
+        
+        timing["GTSAM"] = np.mean(gtsam_times)
+        results["GTSAM"] = gtsam_result  # Keep the last result for visualization
 
         gtsam_error = np.mean(np.sqrt(np.sum((gtsam_result[:, :2] - gt_poses[:, :2])**2, axis=1)))
         errors["GTSAM"] = gtsam_error
 
     if "g2o" in frameworks:
-        start_time = time.time()
-        g2o_result, _ = optimize_with_g2o(odometry, loop_closures, initial_pose=initial_pose)
-        timing["g2o"] = time.time() - start_time
-        results["g2o"] = g2o_result
+        g2o_times = []
+        for _ in range(num_runs):
+            start_time = time.time()
+            g2o_result, _ = optimize_with_g2o(odometry, loop_closures, initial_pose=initial_pose)
+            g2o_times.append(time.time() - start_time)
+        
+        timing["g2o"] = np.mean(g2o_times)
+        results["g2o"] = g2o_result  # Keep the last result for visualization
 
         g2o_error = np.mean(np.sqrt(np.sum((g2o_result[:, :2] - gt_poses[:, :2])**2, axis=1)))
         errors["g2o"] = g2o_error
@@ -102,8 +110,8 @@ if __name__ == "__main__":
     odometry = data['odometry']
     loop_closures = data['loop_closures']
 
-    # Run comparison
-    results, timing, errors = compare_frameworks(gt_poses, odometry, loop_closures)
+    # Run comparison with 10 runs for timing
+    results, timing, errors = compare_frameworks(gt_poses, odometry, loop_closures, num_runs=10)
 
     # Save results
     np.savez('optimization_results.npz',

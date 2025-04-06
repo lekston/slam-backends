@@ -1,2 +1,14 @@
+# gedit
 *~
+
+# vim
+*.swo
+*.swp
+
+# python
 *.pyc
+venv/*
+
+# data
+*.npz
+

@@ -21,7 +21,8 @@ def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, 
     """
     # Create a g2o optimizer
     optimizer = g2o.SparseOptimizer()
-    solver = g2o.BlockSolverSE2(g2o.LinearSolverCholmodSE2())
+    # solver = g2o.BlockSolverSE2(g2o.LinearSolverCholmodSE2())
+    solver = g2o.BlockSolverSE2(g2o.LinearSolverDenseSE2())
     algorithm = g2o.OptimizationAlgorithmLevenberg(solver)
     optimizer.set_algorithm(algorithm)
 
@@ -128,7 +129,8 @@ def optimize_with_g2o(odometry, loop_closures, prior_noise=0.1, odom_noise=0.2, 
     for i in range(len(poses)):
         v = optimizer.vertex(i)
         pose = v.estimate()
-        optimized_poses[i] = [pose.x(), pose.y(), pose.theta()]
+        xy = pose.translation()
+        optimized_poses[i] = [xy[0], xy[1], pose.rotation().angle()]
 
     return optimized_poses
 
